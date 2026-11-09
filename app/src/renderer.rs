@@ -1,6 +1,5 @@
 use crate::spin::Spin;
 use macroquad::prelude::*;
-use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 const PADDING: f32 = 0.12;
 const ROUNDING: f32 = 0.32;
@@ -14,25 +13,40 @@ fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     )
 }
 
-fn spin_to_color(angle: f32) -> Color {
-    let angle = angle.rem_euclid(TAU);
+fn spin_to_color(spin: Spin) -> Color {
+    let angle = spin.raw() as u32;
+
+    const QUARTER: u32 = 16384;
+    const HALF: u32 = 32768;
+    const THREE_QUARTERS: u32 = 49152;
+    const FULL: u32 = 65536;
 
     let c0 = Color::new(0.10, 0.08, 0.12, 1.0);
     let c90 = Color::new(0.95, 0.72, 0.50, 1.0);
     let c180 = Color::new(1.00, 0.55, 0.78, 1.0);
     let c270 = Color::new(0.72, 0.58, 0.95, 1.0);
 
-    let base = if angle < FRAC_PI_2 {
-        lerp_color(c0, c90, angle / FRAC_PI_2)
-    } else if angle < PI {
-        lerp_color(c90, c180, (angle - FRAC_PI_2) / FRAC_PI_2)
-    } else if angle < 3.0 * FRAC_PI_2 {
-        lerp_color(c180, c270, (angle - PI) / FRAC_PI_2)
+    let (from, to, position) = if angle < QUARTER {
+        (c0, c90, angle)
+    } else if angle < HALF {
+        (c90, c180, angle - QUARTER)
+    } else if angle < THREE_QUARTERS {
+        (c180, c270, angle - HALF)
     } else {
-        lerp_color(c270, c0, (angle - 3.0 * FRAC_PI_2) / FRAC_PI_2)
+        (c270, c0, angle - THREE_QUARTERS)
     };
 
-    let brightness = 1.0 - (angle - PI).abs() / PI;
+    let base = lerp_color(
+        from,
+        to,
+        position as f32 / QUARTER as f32,
+    );
+
+    let brightness = if angle <= HALF {
+        angle as f32 / HALF as f32
+    } else {
+        (FULL - angle) as f32 / HALF as f32
+    };
 
     Color::new(
         base.r * brightness,
@@ -42,12 +56,13 @@ fn spin_to_color(angle: f32) -> Color {
     )
 }
 
+
 pub fn update_image(image: &mut Image, spins: &[Spin]) {
     let pixels = image.get_image_data_mut();
     assert_eq!(pixels.len(), spins.len());
 
-    for (pixel, &angle) in pixels.iter_mut().zip(spins.iter()) {
-        *pixel = spin_to_color(angle.into()).into();
+    for (pixel, &spin) in pixels.iter_mut().zip(spins.iter()) {
+        *pixel = spin_to_color(spin).into();
     }
 }
 
